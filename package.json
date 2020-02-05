@@ -1,0 +1,48 @@
+{
+  "name": "Diploma",
+  "version": "1.0.0",
+  "description": "\"Browser based game\"",
+  "scripts": {
+    "test": "jest --coverage",
+    "build": "webpack --mode production",
+    "start": "webpack-dev-server --mode development",
+    "serve": "http-server src",
+    "lint": "eslint ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MaxBaks/JS-Diploma.git"
+  },
+  "keywords": [
+    "game"
+  ],
+  "author": "MA MISHUTUSHKIN",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MaxBaks/JS-Diploma/issues"
+  },
+  "homepage": "https://github.com/MaxBaks/JS-Diploma#readme",
+  "devDependencies": {
+    "@babel/cli": "^7.8.3",
+    "@babel/core": "^7.8.3",
+    "@babel/preset-env": "^7.8.3",
+    "babel-loader": "^8.0.6",
+    "css-loader": "^2.1.1",
+    "eslint": "^6.8.0",
+    "eslint-config-airbnb-base": "^14.0.0",
+    "eslint-plugin-import": "^2.20.0",
+    "html-webpack-plugin": "^3.2.0",
+    "http-server": "^0.11.1",
+    "jest": "^24.9.0",
+    "mini-css-extract-plugin": "^0.9.0",
+    "url-loader": "^3.0.0",
+    "webpack": "^4.41.5",
+    "webpack-cli": "^3.3.10",
+    "webpack-dev-server": "^3.4.1"
+  },
+  "dependencies": {
+    "@babel/polyfill": "^7.4.4",
+    "core-js": "^3.6.4",
+    "regenerator-runtime": "^0.13.3"
+  }
+}
