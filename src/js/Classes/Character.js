@@ -7,6 +7,6 @@ export default class Character {
     this.attack = attack;
     this.defence = defence;
     this.health = health;
-    this.type = type;  
+    this.type = type;
   }
 }

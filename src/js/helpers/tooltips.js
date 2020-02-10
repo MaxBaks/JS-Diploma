@@ -7,8 +7,6 @@ const icons = {
 
 const tooltips = ({
   level, attack, defence, health,
-}) => {
-  return `${icons.level}${level} ${icons.attack}${attack} ${icons.defence}${defence} ${icons.health}${health}`;
-};
+}) => `${icons.level}${level} ${icons.attack}${attack} ${icons.defence}${defence} ${icons.health}${health}`;
 
 export default tooltips;
