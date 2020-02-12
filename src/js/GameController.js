@@ -1,4 +1,6 @@
+import { loadPartialConfig } from '@babel/core';
 import themes from './themes';
+import levels from './levels';
 import generateTeam, { generateTeamPositions } from './generators';
 import tooltips from './helpers/tooltips';
 import { moveIndices, attackIndices } from './helpers/reachIndices';
@@ -23,15 +25,24 @@ export default class GameController {
   init() {
     // TODO: add event listeners to gamePlay events
     // TODO: load saved states from stateService
-    this.gamePlay.drawUi(themes.prairie);
+    const loadData = this.stateService.load();
+
+    if (loadData === null) {
+      this.currentLevel = 1;
+      this.turn = 1;
+      this.gamePlay.drawUi(themes[levels.get(this.currentLevel)]);
+      this.generateTeams();
+      this.gamePlay.redrawPositions(this.positions);
+    } else {
+      this.onLoadGame(loadData);
+    }
+
     this.gamePlay.addCellEnterListener(this.onCellEnter.bind(this));
     this.gamePlay.addCellClickListener(this.onCellClick.bind(this));
     this.gamePlay.addCellLeaveListener(this.onCellLeave.bind(this));
     this.gamePlay.addNewGameListener(this.onNewGame.bind(this));
-
-    this.generateTeams();
-
-    this.gamePlay.redrawPositions(this.positions);
+    this.gamePlay.addSaveGameListener(this.onSaveGame.bind(this));
+    this.gamePlay.addLoadGameListener(this.onLoadGame.bind(this));
   }
 
   generateTeams() {
@@ -40,8 +51,8 @@ export default class GameController {
     const allowedTypes = [Bowman, Magician, Swordsman];
     const notAllowedTypes = [Daemon, Undead, Vampire];
 
-    const allies = generateTeam(allowedTypes, 1, 2);
-    const enemies = generateTeam(notAllowedTypes, 1, 2);
+    const allies = generateTeam(allowedTypes, this.currentLevel, 2);
+    const enemies = generateTeam(notAllowedTypes, this.currentLevel, 2);
 
     const alliesPositions = generateTeamPositions([0, boardSize - 1], [0, 1], 2);
     const enemiesPositions = generateTeamPositions(
@@ -67,64 +78,77 @@ export default class GameController {
 
   onCellClick(index) {
     // TODO: react to click
-    const posCharacter = this.positions.filter((pos) => pos.position === index);
-    if (
-      posCharacter.length
-      && ['bowman', 'swordsman', 'magician'].includes(posCharacter[0].character.type)
-    ) {
-      if (this.selectedPosCharacter !== undefined) {
-        this.gamePlay.deselectCell(this.selectedPosCharacter.position);
-      }
-      this.gamePlay.selectCell(index);
-      this.selectedPosCharacter = posCharacter[0];
-    } else if (!posCharacter.length) {
-      if (this.selectedPosCharacter !== undefined) {
-        const moveIdxs = moveIndices(
+    if (this.turn === 1) {
+      const posCharacter = this.positions.filter((pos) => pos.position === index);
+      if (
+        posCharacter.length
+        && ['bowman', 'swordsman', 'magician'].includes(posCharacter[0].character.type)
+      ) {
+        if (this.selectedPosCharacter !== undefined) {
+          this.gamePlay.deselectCell(this.selectedPosCharacter.position);
+        }
+        this.gamePlay.selectCell(index);
+        this.selectedPosCharacter = posCharacter[0];
+      } else if (!posCharacter.length) {
+        if (this.selectedPosCharacter !== undefined) {
+          const moveIdxs = moveIndices(
+            this.selectedPosCharacter.character.type,
+            this.gamePlay.boardSize,
+            this.selectedPosCharacter.position,
+          );
+
+          if (!moveIdxs.includes(index)) {
+            GamePlay.showError('Too long to move!');
+          } else {
+            this.gamePlay.deselectCell(this.selectedPosCharacter.position);
+            this.selectedPosCharacter.position = index;
+            this.positions = [...this.alliesTeam, ...this.enemyTeam];
+            this.gamePlay.redrawPositions(this.positions);
+            this.turn = 0;
+            if (this.enemyTeam.length === 0) {
+              this.onWinningRound();
+            } else {
+              setTimeout(() => {
+                this.enemyMove();
+              }, 500);
+            }
+          }
+        }
+      } else if (
+        posCharacter.length
+        && ['undead', 'vampire', 'daemon'].includes(posCharacter[0].character.type)
+        && this.selectedPosCharacter !== undefined
+      ) {
+        const attackIdxs = attackIndices(
           this.selectedPosCharacter.character.type,
           this.gamePlay.boardSize,
           this.selectedPosCharacter.position,
         );
 
-        if (!moveIdxs.includes(index)) {
-          GamePlay.showError('Too long to move!');
+        if (!attackIdxs.includes(index)) {
+          GamePlay.showError('Cannot reach to the enemy!');
         } else {
+          this.enemyTeam.forEach((enemy) => {
+            if (enemy.position === index) {
+              enemy.character.health = healthAfterAttack(this.selectedPosCharacter, enemy);
+            }
+          });
           this.gamePlay.deselectCell(this.selectedPosCharacter.position);
-          this.selectedPosCharacter.position = index;
+          this.enemyTeam = this.enemyTeam.filter((enemy) => enemy.character.health !== 0);
           this.positions = [...this.alliesTeam, ...this.enemyTeam];
           this.gamePlay.redrawPositions(this.positions);
-          setTimeout(() => {
-            this.enemyMove();
-          }, 500);
-        }
-      }
-    } else if (
-      posCharacter.length
-      && ['undead', 'vampire', 'daemon'].includes(posCharacter[0].character.type)
-      && this.selectedPosCharacter !== undefined
-    ) {
-      const attackIdxs = attackIndices(
-        this.selectedPosCharacter.character.type,
-        this.gamePlay.boardSize,
-        this.selectedPosCharacter.position,
-      );
-
-      if (!attackIdxs.includes(index)) {
-        GamePlay.showError('Cannot reach to the enemy!');
-      } else {
-        this.enemyTeam.forEach((enemy) => {
-          if (enemy.position === index) {
-            enemy.character.health = healthAfterAttack(this.selectedPosCharacter, enemy);
+          this.turn = 0;
+          if (this.enemyTeam.length === 0) {
+            this.onWinningRound();
+          } else {
+            setTimeout(() => {
+              this.enemyMove();
+            }, 500);
           }
-        });
-        this.enemyTeam = this.enemyTeam.filter((enemy) => enemy.character.health !== 0);
-        this.positions = [...this.alliesTeam, ...this.enemyTeam];
-        this.gamePlay.redrawPositions(this.positions);
-        setTimeout(() => {
-          this.enemyMove();
-        }, 500);
+        }
+      } else {
+        GamePlay.showError('You can only select a playable character');
       }
-    } else {
-      GamePlay.showError('You can only select a playable character');
     }
   }
 
@@ -190,18 +214,37 @@ export default class GameController {
 
 
   enemyMove() {
-    this.selectedPosCharacter = this.enemyTeam[Math.floor(Math.random() * this.enemyTeam.length)];
+    const enemyCanAttack = [];
+    this.enemyTeam.forEach((enemy) => {
+      const attackIdxs = attackIndices(
+        enemy.character.type,
+        this.gamePlay.boardSize,
+        enemy.position,
+      );
+      const alliesPositions = this.alliesTeam.map((x) => x.position);
+      const hasAlliesForAttack = attackIdxs.some((v) => alliesPositions.includes(v));
 
-    const attackIdxs = attackIndices(
-      this.selectedPosCharacter.character.type,
-      this.gamePlay.boardSize,
-      this.selectedPosCharacter.position,
-    );
+      if (hasAlliesForAttack) {
+        enemyCanAttack.push(enemy);
+      }
+    });
+    if (enemyCanAttack.length > 1) {
+      this.selectedPosCharacter = enemyCanAttack.sort((prev, next) => next.character.attack - prev.character.attack)[0];
+    }
+    if (enemyCanAttack.length === 1) {
+      this.selectedPosCharacter = enemyCanAttack[0];
+    }
+    if (enemyCanAttack.length === 0) {
+      this.selectedPosCharacter = this.enemyTeam[Math.floor(Math.random() * this.enemyTeam.length)];
+    }
 
-    const alliesPositions = this.alliesTeam.map((x) => x.position);
-    const hasAlliesForAttack = attackIdxs.some((v) => alliesPositions.includes(v));
-
-    if (hasAlliesForAttack) {
+    if (enemyCanAttack.length !== 0) {
+      const attackIdxs = attackIndices(
+        this.selectedPosCharacter.character.type,
+        this.gamePlay.boardSize,
+        this.selectedPosCharacter.position,
+      );
+      const alliesPositions = this.alliesTeam.map((x) => x.position);
       const alliesForAttack = attackIdxs.find((x) => alliesPositions.includes(x));
       this.alliesTeam.forEach((allie) => {
         if (allie.position === alliesForAttack) {
@@ -211,6 +254,10 @@ export default class GameController {
       this.alliesTeam = this.alliesTeam.filter((allie) => allie.character.health !== 0);
       this.positions = [...this.alliesTeam, ...this.enemyTeam];
       this.gamePlay.redrawPositions(this.positions);
+      this.turn = 1;
+      if (this.alliesTeam.length === 0) {
+        this.onGameOver();
+      }
     } else {
       const moveIdxs = moveIndices(
         this.selectedPosCharacter.character.type,
@@ -218,17 +265,61 @@ export default class GameController {
         this.selectedPosCharacter.position,
       );
 
+      const alliesPositions = this.alliesTeam.map((x) => x.position);
+      const allowedMovePositions = moveIdxs.filter((move) => !alliesPositions.includes(alliesPositions));
       this.selectedPosCharacter.position = moveIdxs[Math.floor(Math.random() * moveIdxs.length)];
       this.positions = [...this.alliesTeam, ...this.enemyTeam];
       this.gamePlay.redrawPositions(this.positions);
+      this.turn = 1;
       this.selectedPosCharacter = undefined;
-      if (this.alliesTeam.length) {
-        onGameOver();
+      if (this.alliesTeam.length === 0) {
+        this.onGameOver();
       }
     }
   }
 
   onGameOver() {
-    alert('Game over!');
+    GamePlay.showMessage('Game over!');
+  }
+
+  onWinningRound() {
+    GamePlay.showMessage('You won!');
+    this.currentLevel++;
+    this.stateService.save({
+      level: this.currentLevel,
+    });
+    this.init();
+  }
+
+  onSaveGame() {
+    this.stateService.save({
+      allies: this.alliesTeam,
+      enemies: this.enemyTeam,
+      currentTurn: this.turn,
+      level: this.currentLevel,
+    });
+  }
+
+  onLoadGame(loadData) {
+    if (loadData.allies === undefined) {
+      this.currentLevel = loadData.level;
+      this.gamePlay.drawUi(themes[levels.get(this.currentLevel)]);
+      this.turn = 1;
+      this.generateTeams();
+      this.gamePlay.redrawPositions(this.positions);
+    } else {
+      this.currentLevel = loadData.level;
+      this.gamePlay.drawUi(themes[levels.get(this.currentLevel)]);
+      this.selectedPosCharacter = undefined;
+      this.alliesTeam = loadData.allies;
+      this.enemyTeam = loadData.enemies;
+      this.positions = [...this.alliesTeam, ...this.enemyTeam];
+      this.gamePlay.redrawPositions(this.positions);
+
+      this.turn = loadData.currentTurn;
+      if (this.turn === 0) {
+        this.enemyMove();
+      }
+    }
   }
 }
