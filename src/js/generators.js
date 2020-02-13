@@ -44,3 +44,8 @@ export function generateTeamPositions([iMin, iMax], [jMin, jMax], characterCount
   }
   return teamPositions;
 }
+
+export function getCharacterCount(level, allies) {
+  if (level === 1) return 2;
+  return level === 2 ? allies + 1 : allies + 2;
+}

@@ -1,7 +1,7 @@
 import { loadPartialConfig } from '@babel/core';
 import themes from './themes';
-import levels from './levels';
-import generateTeam, { generateTeamPositions } from './generators';
+import levels, { levelUp } from './levels';
+import generateTeam, { generateTeamPositions, getCharacterCount } from './generators';
 import tooltips from './helpers/tooltips';
 import { moveIndices, attackIndices } from './helpers/reachIndices';
 import { calculateAttack, healthAfterAttack } from './helpers/attack';
@@ -31,7 +31,7 @@ export default class GameController {
       this.currentLevel = 1;
       this.turn = 1;
       this.gamePlay.drawUi(themes[levels.get(this.currentLevel)]);
-      this.generateTeams();
+      this.generateTeams(true);
       this.gamePlay.redrawPositions(this.positions);
     } else {
       this.onLoadGame(loadData);
@@ -45,29 +45,40 @@ export default class GameController {
     this.gamePlay.addLoadGameListener(this.onLoadGame.bind(this));
   }
 
-  generateTeams() {
+  generateTeams(isNewGame) {
     const { boardSize } = this.gamePlay;
 
-    const allowedTypes = [Bowman, Magician, Swordsman];
+    const allowedTypes = this.currentLevel === 1 ? [Bowman, Swordsman] : [Bowman, Magician, Swordsman];
     const notAllowedTypes = [Daemon, Undead, Vampire];
 
-    const allies = generateTeam(allowedTypes, this.currentLevel, 2);
-    const enemies = generateTeam(notAllowedTypes, this.currentLevel, 2);
+    if (isNewGame) {
+      this.alliesTeam = [];
+      const allies = generateTeam(allowedTypes, this.currentLevel, 2);
+      const alliesPositions = generateTeamPositions([0, boardSize - 1], [0, 1], 2);
+      allies.forEach((humanCharacter, i) => {
+        const positionedCharacter = new PositionedCharacter(humanCharacter, alliesPositions[i]);
+        this.alliesTeam.push(positionedCharacter);
+      });
+    } else {
+      this.alliesTeam.forEach((allie, i) => {
+        allie.character = levelUp(allie.character);
+      });
+      const newAllies = generateTeam(allowedTypes, this.currentLevel - 1, this.currentLevel === 2 ? 1 : 2);
+      const newAlliesPositions = generateTeamPositions([0, boardSize - 1], [0, 1], this.currentLevel === 2 ? 1 : 2);
+      newAllies.forEach((humanCharacter, i) => {
+        const positionedCharacter = new PositionedCharacter(humanCharacter, newAlliesPositions[i]);
+        this.alliesTeam.push(positionedCharacter);
+      });
+    }
 
-    const alliesPositions = generateTeamPositions([0, boardSize - 1], [0, 1], 2);
+    const enemies = generateTeam(notAllowedTypes, this.currentLevel, this.alliesTeam.length);
     const enemiesPositions = generateTeamPositions(
       [0, boardSize - 1],
       [boardSize - 2, boardSize - 1],
-      2,
+      getCharacterCount(this.currentLevel, this.alliesTeam.length),
     );
 
-    this.alliesTeam = [];
     this.enemyTeam = [];
-
-    allies.forEach((humanCharacter, i) => {
-      const positionedCharacter = new PositionedCharacter(humanCharacter, alliesPositions[i]);
-      this.alliesTeam.push(positionedCharacter);
-    });
     enemies.forEach((computerCharacter, i) => {
       const positionedCharacter = new PositionedCharacter(computerCharacter, enemiesPositions[i]);
       this.enemyTeam.push(positionedCharacter);
@@ -209,6 +220,7 @@ export default class GameController {
 
   onNewGame() {
     this.selectedPosCharacter = undefined;
+    this.stateService.save(null);
     this.init();
   }
 
@@ -266,8 +278,9 @@ export default class GameController {
       );
 
       const alliesPositions = this.alliesTeam.map((x) => x.position);
-      const allowedMovePositions = moveIdxs.filter((move) => !alliesPositions.includes(alliesPositions));
-      this.selectedPosCharacter.position = moveIdxs[Math.floor(Math.random() * moveIdxs.length)];
+      const enemiesPositions = this.enemyTeam.filter((x) => x.position !== this.selectedPosCharacter.position).map((x) => x.position);
+      const allowedMovePositions = moveIdxs.filter((move) => !alliesPositions.includes(move) && !enemiesPositions.includes(move));
+      this.selectedPosCharacter.position = allowedMovePositions[Math.floor(Math.random() * moveIdxs.length)];
       this.positions = [...this.alliesTeam, ...this.enemyTeam];
       this.gamePlay.redrawPositions(this.positions);
       this.turn = 1;
@@ -284,11 +297,14 @@ export default class GameController {
 
   onWinningRound() {
     GamePlay.showMessage('You won!');
-    this.currentLevel++;
-    this.stateService.save({
-      level: this.currentLevel,
-    });
-    this.init();
+    if (this.currentLevel < 4) {
+      this.currentLevel++;
+      this.stateService.save({
+        level: this.currentLevel,
+        allies: this.alliesTeam,
+      });
+      this.init();
+    }
   }
 
   onSaveGame() {
@@ -301,11 +317,12 @@ export default class GameController {
   }
 
   onLoadGame(loadData) {
-    if (loadData.allies === undefined) {
+    if (loadData.enemies === undefined) {
       this.currentLevel = loadData.level;
       this.gamePlay.drawUi(themes[levels.get(this.currentLevel)]);
+      this.alliesTeam = loadData.allies;
       this.turn = 1;
-      this.generateTeams();
+      this.generateTeams(false);
       this.gamePlay.redrawPositions(this.positions);
     } else {
       this.currentLevel = loadData.level;

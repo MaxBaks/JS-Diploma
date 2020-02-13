@@ -6,3 +6,13 @@ const levels = new Map([
 ]);
 
 export default levels;
+
+export function levelUp(character) {
+  const leveledUpCharacter = {};
+  leveledUpCharacter.level = character.level + 1;
+  leveledUpCharacter.health = character.health + 80 > 100 ? 100 : character.health + 80;
+  leveledUpCharacter.attack = Math.max(character.attack, character.attack * (1.8 - (1 - character.health / 100)));
+  leveledUpCharacter.defence = Math.max(character.defence, character.defence * (1.8 - (1 - character.health / 100)));
+  leveledUpCharacter.type = character.type;
+  return leveledUpCharacter;
+}
