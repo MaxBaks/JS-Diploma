@@ -37,6 +37,13 @@ export default class GameController {
       this.onLoadGame(loadData);
     }
 
+    this.gamePlay.cellClickListeners = [];
+    this.gamePlay.cellEnterListeners = [];
+    this.gamePlay.cellLeaveListeners = [];
+    this.gamePlay.newGameListeners = [];
+    this.gamePlay.saveGameListeners = [];
+    this.gamePlay.loadGameListeners = [];
+
     this.gamePlay.addCellEnterListener(this.onCellEnter.bind(this));
     this.gamePlay.addCellClickListener(this.onCellClick.bind(this));
     this.gamePlay.addCellLeaveListener(this.onCellLeave.bind(this));
