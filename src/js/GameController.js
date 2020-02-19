@@ -148,21 +148,23 @@ export default class GameController {
         } else {
           this.enemyTeam.forEach((enemy) => {
             if (enemy.position === index) {
-              enemy.character.health = healthAfterAttack(this.selectedPosCharacter, enemy);
+              this.gamePlay.showDamage(index, calculateAttack(this.selectedPosCharacter, enemy)).then((res) => {
+                enemy.character.health = healthAfterAttack(this.selectedPosCharacter, enemy);
+                this.gamePlay.deselectCell(this.selectedPosCharacter.position);
+                this.enemyTeam = this.enemyTeam.filter((enemy) => enemy.character.health !== 0);
+                this.positions = [...this.alliesTeam, ...this.enemyTeam];
+                this.gamePlay.redrawPositions(this.positions);
+                this.turn = 0;
+                if (this.enemyTeam.length === 0) {
+                  this.onWinningRound();
+                } else {
+                  setTimeout(() => {
+                    this.enemyMove();
+                  }, 500);
+                }
+              });            
             }
-          });
-          this.gamePlay.deselectCell(this.selectedPosCharacter.position);
-          this.enemyTeam = this.enemyTeam.filter((enemy) => enemy.character.health !== 0);
-          this.positions = [...this.alliesTeam, ...this.enemyTeam];
-          this.gamePlay.redrawPositions(this.positions);
-          this.turn = 0;
-          if (this.enemyTeam.length === 0) {
-            this.onWinningRound();
-          } else {
-            setTimeout(() => {
-              this.enemyMove();
-            }, 500);
-          }
+          });        
         }
       } else {
         GamePlay.showError('You can only select a playable character');
@@ -208,8 +210,6 @@ export default class GameController {
       } else if (attackIdxs.includes(index) && currentPosCharacter.length && this.enemyTeam.map((a) => a.position).includes(index)) {
         this.gamePlay.setCursor(cursors.crosshair);
         this.gamePlay.redCell(index);
-        this.gamePlay.showDamage(index, calculateAttack(this.selectedPosCharacter, currentPosCharacter[0])).then((res) => {
-        });
       } else if (this.alliesTeam.map((a) => a.position).includes(index)) {
         this.gamePlay.setCursor(cursors.auto);
       } else if (index !== this.selectedPosCharacter.position) {
